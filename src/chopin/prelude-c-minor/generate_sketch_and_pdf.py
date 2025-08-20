@@ -1,14 +1,17 @@
 import matplotlib.pyplot as plt
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
+)
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
+from reportlab.lib import colors
 import os
 
 # ====== CONFIG ======
 PDF_PATH = "chopin_schenkerian_sketch.pdf"
 SKETCH_PNG = "chopin_schenkerian_sketch.png"
-SCORE_IMAGE = "prelude_c_minor_score.png"   # <- put your score image here (PNG/JPG)
+SCORE_IMAGE = "prelude_c_minor_score.png"  # <- put your score image here (PNG/JPG)
 PAGE_W, PAGE_H = letter
 MARGIN = 0.75 * inch
 MAX_IMG_W = PAGE_W - 2 * MARGIN
@@ -52,19 +55,20 @@ ax.set_title("Schenkerian Sketch with Measure References  Chopin, Prelude in C 
 plt.savefig(SKETCH_PNG, dpi=300, bbox_inches="tight")
 plt.close()
 
-# ====== STEP 2: Build a twopage PDF (page 1: sketch+notes, page 2: score) ======
+# ====== STEP 2: Build the PDF ======
 styles = getSampleStyleSheet()
-doc = SimpleDocTemplate(PDF_PATH, pagesize=letter,
-                        leftMargin=MARGIN, rightMargin=MARGIN,
-                        topMargin=MARGIN, bottomMargin=MARGIN)
+doc = SimpleDocTemplate(
+    PDF_PATH, pagesize=letter,
+    leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN
+)
 story = []
 
-# ----- Page 1: Title + Notes + Sketch -----
+# ---------- PAGE 1: Sketch + Notes ----------
 story.append(Paragraph("<b>Schenkerian Sketch  Chopin, Prelude in C minor (Op. 28 No. 20)</b>", styles["Title"]))
 story.append(Spacer(1, 12))
 
 description = """
-This sketch illustrates the structural levels in Chopins Prelude in C minor, Op. 28 No. 20.
+This sketch illustrates structural levels in Chopins Prelude in C minor, Op. 28 No. 20.
 
 <b>Urlinie (321):</b>
 - Em (3), prolonged in mm. 14
@@ -83,35 +87,85 @@ This shows how Chopin dramatizes a simple IVI framework with rich harmonic int
 """
 story.append(Paragraph(description, styles["Normal"]))
 story.append(Spacer(1, 18))
-
-# Fit sketch image within margins
-story.append(Image(SKETCH_PNG, width=MAX_IMG_W, height=MAX_IMG_H * 0.55))  # 55% height to keep page airy
-
-# Page break
+story.append(Image(SKETCH_PNG, width=MAX_IMG_W, height=MAX_IMG_H * 0.55))
 story.append(PageBreak())
 
-# ----- Page 2: Score excerpt -----
+# ---------- PAGE 2: Score Excerpt ----------
 story.append(Paragraph("<b>Score Excerpt (Public Domain)</b>", styles["Heading1"]))
 story.append(Spacer(1, 8))
 story.append(Paragraph(
     "Frédéric Chopin, Prelude in C minor, Op. 28 No. 20  first page excerpt. "
-    "Used here from a public-domain source (e.g., IMSLP).", styles["Normal"]))
+    "Public domain source (e.g., IMSLP).", styles["Normal"]
+))
 story.append(Spacer(1, 12))
 
 if os.path.exists(SCORE_IMAGE):
-    # Place the score image scaled to fit page content area
-    # Use keepAspectRatio=True and let it scale to fit within bounds
+    # Scale image to fit within page bounds while maintaining aspect ratio
     img = Image(SCORE_IMAGE)
-    img.drawWidth = MAX_IMG_W
-    img.drawHeight = MAX_IMG_H * 0.85  # Use 85% of max height to ensure it fits
     img._restrictSize(MAX_IMG_W, MAX_IMG_H * 0.85)
     story.append(img)
 else:
     story.append(Paragraph(
         f"<i>(Score image not found at '{SCORE_IMAGE}'. "
-        f"Export a 300dpi PNG/JPG of the first page and save it with that name.)</i>",
+        f"Export a 300-dpi PNG/JPG of the first page and save it with that name.)</i>",
         styles["Italic"]))
     story.append(Spacer(1, 12))
 
+story.append(PageBreak())
+
+# ---------- PAGE 3: Roman-Numeral Harmonic Outline ----------
+story.append(Paragraph("<b>Harmonic Outline (Roman Numerals by Measure)</b>", styles["Heading1"]))
+story.append(Spacer(1, 8))
+story.append(Paragraph(
+    "Compact harmonic roadmap in C minor. Local spellings/voicings vary by edition; "
+    "outline reflects a common reading aligned with the Schenkerian middleground.",
+    styles["Normal"]))
+story.append(Spacer(1, 12))
+
+# Table data: [Measure(s), Harmony (Roman numerals), Function / Notes]
+data = [
+    ["mm. 12",  "i",                 "Tonic, initial statement / prolongation"],
+    ["mm. 34",  "i (prolonged)",     "Continuation of tonic support"],
+    ["m.  5",    "mIII",              "Upper-third expansion of I (Em major)"],
+    ["m.  6",    "vii°/V (passing)",  "Leading-tone diminished harmony to V"],
+    ["mm. 78",  "V (prolonged)",     "Dominant preparation"],
+    ["m.  9",    "N6  V",            "Neapolitan (Dm) intensifies the dominant"],
+    ["m. 10",    "V (cadential)",     "Dominant close; prepares resolution"],
+    ["mm. 1113","i",                 "Tonic resolution / close"],
+]
+
+table = Table(data, colWidths=[1.2*inch, 1.5*inch, MAX_IMG_W - (1.2*inch + 1.5*inch)])
+table.setStyle(TableStyle([
+    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+    ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+    ("ALIGN", (0,0), (-1,0), "CENTER"),
+    ("VALIGN", (0,0), (-1,-1), "TOP"),
+    ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
+    ("BOX", (0,0), (-1,-1), 0.75, colors.black),
+    ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+]))
+# Add a header row label
+data.insert(0, ["Measure(s)", "Harmony", "Function / Notes"])
+# Rebuild table with header formatting
+table = Table(data, colWidths=[1.2*inch, 1.5*inch, MAX_IMG_W - (1.2*inch + 1.5*inch)])
+table.setStyle(TableStyle([
+    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+    ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+    ("ALIGN", (0,0), (-1,0), "CENTER"),
+    ("VALIGN", (0,0), (-1,-1), "TOP"),
+    ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
+    ("BOX", (0,0), (-1,-1), 0.75, colors.black),
+    ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+]))
+
+story.append(table)
+story.append(Spacer(1, 10))
+story.append(Paragraph(
+    "<i>Notes:</i> The N6 (Dm) functions as an intensified predominant that resolves to V; "
+    "the diminished harmony in m. 6 is read as vii° of the dominant (a passing dominant-preparation). "
+    "Foreground variants may label cadential 64 in the V area; the middleground here rolls it into the V prolongation.",
+    styles["Normal"]))
+
+# Build PDF
 doc.build(story)
-print(f"Built twopage PDF: {PDF_PATH}")
+print(f"Built three-page PDF: {PDF_PATH}")
